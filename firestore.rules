@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: teams
+    // Document ID: teamId
+    // Fields:
+    //   - name: string (required)
+    //   - countryCode: string (required)
+    //   - points: number (required)
+    //   - goals: number (required)
+    //   - callCenterGroup: string (optional)
+    //   - lastMatchDate: string (optional, date-time)
+    //
+    // Collection: matches
+    // Document ID: matchId
+    // Fields:
+    //   - teamAId: string (required)
+    //   - teamBId: string (required)
+    //   - scoreA: number (required)
+    //   - scoreB: number (required)
+    //   - date: string (required, date-time)
+    //   - status: string (required, enum: scheduled, live, completed)
+    //
+    // Collection: users
+    // Document ID: uid
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required, enum: admin, user)
+    //   - teamId: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "juan.s.windmarhome@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidTeam(data) {
+      return data.keys().hasAll(['name', 'countryCode', 'points', 'goals']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 3 &&
+             data.points is number && data.goals is number &&
+             (!('color' in data) || (data.color is string && data.color.size() <= 7));
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasAll(['teamAId', 'teamBId', 'scoreA', 'scoreB', 'date', 'status']) &&
+             data.teamAId is string && data.teamBId is string &&
+             data.scoreA is number && data.scoreB is number &&
+             data.date is string &&
+             data.status in ['scheduled', 'live', 'completed'];
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role']) &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'user'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidTeam(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidMatch(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
