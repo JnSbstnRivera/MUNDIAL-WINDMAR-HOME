@@ -149,9 +149,10 @@ export default function App() {
 
       {/* Main Content */}
       <main className="w-full h-full">
-        <Globe 
-          teams={teams} 
-          onCountryClick={setSelectedCountryCode} 
+        <Globe
+          teams={teams}
+          matches={matches}
+          onCountryClick={setSelectedCountryCode}
           selectedCountryCode={selectedCountryCode}
         />
       </main>

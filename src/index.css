@@ -6,23 +6,31 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-@keyframes shooting-star {
+/* ─── Meteor shower ────────────────────────────────────────────────────────────
+   rotate(32deg) hace que translateX mueva el meteoro en esa dirección diagonal.
+   El 85% del tiempo el meteoro es invisible → efecto de "lluvia periódica".
+────────────────────────────────────────────────────────────────────────────── */
+@keyframes meteor {
   0% {
-    transform: translateX(0) translateY(0) rotate(-45deg) scale(0);
+    transform: rotate(32deg) translateX(-60px);
     opacity: 0;
   }
-  10% {
-    opacity: 1;
-    scale: 1;
-  }
-  100% {
-    transform: translateX(300px) translateY(300px) rotate(-45deg) scale(0);
+  3%  { opacity: 1; }
+  14% { opacity: 0; transform: rotate(32deg) translateX(900px); }
+  15%, 100% {
+    transform: rotate(32deg) translateX(900px);
     opacity: 0;
   }
 }
 
-.animate-shooting-star {
-  animation: shooting-star 3s linear infinite;
+.animate-meteor {
+  animation: meteor linear infinite;
+}
+
+/* ─── Bandera pulsante para partidos en vivo ──────────────────────────────── */
+@keyframes pulse-flag {
+  from { box-shadow: 0 0 4px rgba(74, 222, 128, 0.5),  0 2px 8px rgba(0,0,0,0.7); }
+  to   { box-shadow: 0 0 14px rgba(74, 222, 128, 1.0), 0 2px 8px rgba(0,0,0,0.7); }
 }
 
 .clip-path-beam {
@@ -34,14 +42,6 @@ body {
 }
 
 /* Custom scrollbar for leaderboard */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track  { @apply bg-transparent; }
+::-webkit-scrollbar-thumb  { @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors; }
