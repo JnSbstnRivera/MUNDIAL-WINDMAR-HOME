@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, googleProvider, handleFirestoreError, seedDatabase } from './lib/firebase';
 import { signInWithPopup, onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Team, Match, UserProfile } from './types';
 import Globe from './components/Globe';
 import TeamDetails from './components/TeamDetails';
@@ -9,6 +9,9 @@ import AdminPanel from './components/AdminPanel';
 import SpaceBackground from './components/SpaceBackground';
 import { Trophy, LogIn, LogOut, Shield, Globe as GlobeIcon, List, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Para agregar más admins en el futuro, solo añade el email aquí
+const ADMIN_EMAILS = ['juan.s@windmarhome.com'];
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -32,13 +35,14 @@ export default function App() {
             setUserProfile(profile);
             if (profile.role === 'admin') seedDatabase();
           } else {
-            // Default profile for new users
-            const isAdmin = currentUser.email === 'juan.s@windmarhome.com';
+            // Nuevo usuario: crear y guardar perfil en Firestore
+            const isAdmin = ADMIN_EMAILS.includes(currentUser.email || '');
             const newProfile: UserProfile = {
               uid: currentUser.uid,
               email: currentUser.email || '',
               role: isAdmin ? 'admin' : 'user'
             };
+            await setDoc(doc(db, 'users', currentUser.uid), newProfile);
             setUserProfile(newProfile);
             if (isAdmin) seedDatabase();
           }
