@@ -7,11 +7,11 @@ import Globe from './components/Globe';
 import TeamDetails from './components/TeamDetails';
 import AdminPanel from './components/AdminPanel';
 import SpaceBackground from './components/SpaceBackground';
+import LoadingScreen from './components/LoadingScreen';
 import { Trophy, LogIn, LogOut, Shield, Globe as GlobeIcon, List, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// Para agregar más admins en el futuro, solo añade el email aquí
-const ADMIN_EMAILS = ['juan.s@windmarhome.com'];
+const ADMIN_EMAILS = ['juan.s.windmarhome@gmail.com'];
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -23,6 +23,7 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -86,19 +87,17 @@ export default function App() {
 
   const selectedTeam = teams.find(t => t.countryCode === selectedCountryCode) || null;
 
-  if (loading) {
-    return (
-      <div className="h-screen w-screen bg-black flex items-center justify-center">
-        <div className="text-blue-500 animate-pulse flex flex-col items-center gap-4">
-          <GlobeIcon size={48} />
-          <span className="text-xl font-bold tracking-widest uppercase">Cargando Mundial...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen w-screen bg-black text-white overflow-hidden relative font-sans">
+
+      {/* Pantalla de inicio animada */}
+      {showIntro && (
+        <LoadingScreen
+          ready={!loading}
+          onComplete={() => setShowIntro(false)}
+        />
+      )}
+
       <SpaceBackground />
       
       {/* Header */}
