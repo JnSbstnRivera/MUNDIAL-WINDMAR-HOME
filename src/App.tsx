@@ -109,14 +109,22 @@ export default function App() {
             </h1>
             <p className="text-xs md:text-sm text-gray-400 font-medium tracking-widest uppercase mt-1">Competencia de Equipos 2026</p>
           </div>
-          <div className="hidden md:block w-px h-10 bg-white/15 self-center" />
-          <img
-            src="https://i.postimg.cc/44pJ0vXw/logo.png"
-            alt="Windmar Home"
-            className="hidden md:block h-10 object-contain"
-            style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.18))' }}
-            referrerPolicy="no-referrer"
-          />
+          <div className="hidden md:block w-px h-14 bg-white/15 self-center" />
+          <div className="hidden md:block relative">
+            {/* Glow de fondo */}
+            <div className="absolute inset-0 rounded-xl blur-xl opacity-60"
+              style={{ background: 'radial-gradient(ellipse, rgba(99,179,237,0.55) 0%, rgba(56,189,248,0.3) 50%, transparent 75%)' }}
+            />
+            <img
+              src="https://i.postimg.cc/44pJ0vXw/logo.png"
+              alt="Windmar Home"
+              className="relative h-16 object-contain"
+              style={{
+                filter: 'drop-shadow(0 0 12px rgba(147,210,255,0.9)) drop-shadow(0 0 28px rgba(56,189,248,0.6)) brightness(1.08)',
+              }}
+              referrerPolicy="no-referrer"
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 pointer-events-auto">
