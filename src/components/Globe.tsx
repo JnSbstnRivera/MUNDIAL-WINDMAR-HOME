@@ -18,101 +18,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)},${alpha})`;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload  = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-// ─── Canvas composite: pinta la bandera de cada equipo dentro de su país ──────
-// Usa proyección equirectangular (misma que la textura Blue Marble) para
-// recortar la silueta del país con d3.geoPath y dibujar la bandera adentro.
-async function buildGlobeTexture(
-  countries: any,
-  teams: Team[],
-  iso2Map: Record<string, string>
-): Promise<string> {
-  const W = 2048, H = 1024;
-  const canvas = document.createElement('canvas');
-  canvas.width  = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d')!;
-
-  // 1. Textura base Blue Marble
-  try {
-    const base = await loadImage('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
-    ctx.drawImage(base, 0, 0, W, H);
-  } catch {
-    ctx.fillStyle = '#0a1628';
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  // 2. Proyección equirectangular alineada con la textura
-  const projection = d3.geoEquirectangular()
-    .scale(W / (2 * Math.PI))
-    .translate([W / 2, H / 2]);
-
-  const pathGen = d3.geoPath(projection, ctx as any);
-
-  // 3. Pintar bandera dentro de cada país participante
-  for (const team of teams) {
-    const feature = countries.features.find(
-      (f: any) => f.properties.ISO_A3 === team.countryCode
-    );
-    if (!feature) continue;
-
-    const iso2 = iso2Map[team.countryCode];
-    if (!iso2 || iso2 === '-99') continue;
-
-    try {
-      const flagImg = await loadImage(`https://flagcdn.com/w320/${iso2}.png`);
-
-      // Bounding box del país en píxeles
-      const [[minLon, minLat], [maxLon, maxLat]] = d3.geoBounds(feature);
-      const topLeft     = projection([minLon, maxLat]);
-      const bottomRight = projection([maxLon, minLat]);
-      if (!topLeft || !bottomRight) continue;
-
-      const [px0, py0] = topLeft;
-      const [px1, py1] = bottomRight;
-      const pw = px1 - px0;
-      const ph = py1 - py0;
-
-      // Descartar países con bounding box inválido (antimeridianos, etc.)
-      if (pw <= 0 || ph <= 0 || pw > W * 0.75 || ph > H * 0.75) continue;
-
-      ctx.save();
-
-      // Recortar al contorno exacto del país
-      ctx.beginPath();
-      pathGen(feature);
-      ctx.clip();
-
-      // Dibujar bandera con transparencia para mezclar con el terreno
-      ctx.globalAlpha = 0.68;
-      ctx.drawImage(flagImg, px0, py0, pw, ph);
-
-      // Tinte suave del color del equipo encima
-      if (team.color) {
-        ctx.globalAlpha = 0.15;
-        ctx.fillStyle = team.color;
-        ctx.fillRect(px0, py0, pw, ph);
-      }
-
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    } catch {
-      // Si no carga la bandera, dejar la textura base sin cambios
-    }
-  }
-
-  return canvas.toDataURL('image/jpeg', 0.92);
-}
-
 // ─── Componente Globe ─────────────────────────────────────────────────────────
 const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedCountryCode }) => {
   const globeEl      = useRef<any>();
@@ -120,10 +25,6 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
   const [countries, setCountries]     = useState<any>({ features: [] });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [dimensions, setDimensions]   = useState({ width: window.innerWidth, height: window.innerHeight });
-  // Empieza con Blue Marble; se actualiza con la versión con banderas cuando está lista
-  const [globeTexture, setGlobeTexture] = useState(
-    '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
-  );
 
   // ── Resize ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -163,21 +64,7 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
     return map;
   }, [countries]);
 
-  // ── Reconstruir textura cuando cambian equipos o colores ─────────────────────
-  // (no se reconstruye en cada cambio de puntos, solo al agregar/quitar equipos)
-  const teamCompositionKey = useMemo(
-    () => teams.map(t => `${t.countryCode}:${t.color ?? ''}`).sort().join('|'),
-    [teams]
-  );
-
-  useEffect(() => {
-    if (!countries.features.length || !teams.length) return;
-    buildGlobeTexture(countries, teams, iso2Map)
-      .then(setGlobeTexture)
-      .catch(console.error);
-  }, [teamCompositionKey, iso2Map]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Marcadores HTML: badge de nombre + puntos (la bandera ya está en el mapa) ─
+  // ── Marcadores HTML: bandera grande + badge de nombre + puntos ───────────────
   const teamMarkers = useMemo(() => {
     if (!countries.features.length) return [];
     return teams.map(team => {
@@ -187,22 +74,23 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
       if (!feature) return null;
       try {
         const [lng, lat] = d3.geoCentroid(feature as any);
+        const iso2 = iso2Map[team.countryCode];
         const isLive = matches.some(
           m => (m.teamAId === team.id || m.teamBId === team.id) && m.status === 'live'
         );
         const isActive = team.points > 0 || matches.some(
           m => m.teamAId === team.id || m.teamBId === team.id
         );
-        return { team, lat, lng, isLive, isActive };
+        return { team, lat, lng, iso2, isLive, isActive };
       } catch { return null; }
     }).filter(Boolean);
-  }, [teams, matches, countries]);
+  }, [teams, matches, countries, iso2Map]);
 
   // ── Elemento HTML del marcador ───────────────────────────────────────────────
   const buildMarker = useCallback((d: any): HTMLElement => {
-    const { team, isLive, isActive } = d;
+    const { team, iso2, isLive, isActive } = d;
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);pointer-events:none;gap:2px;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);pointer-events:none;gap:3px;';
 
     // Badge EN VIVO
     if (isLive) {
@@ -217,11 +105,30 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
       wrap.appendChild(live);
     }
 
+    // Bandera grande que representa el país en el mapa
+    if (iso2 && iso2 !== '-99') {
+      const flagWrap = document.createElement('div');
+      flagWrap.style.cssText = [
+        'border-radius:4px', 'overflow:hidden',
+        `border:2px solid ${isLive ? 'rgba(74,222,128,0.7)' : isActive ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)'}`,
+        'box-shadow:0 2px 12px rgba(0,0,0,0.7)',
+        isActive ? 'opacity:1' : 'opacity:0.55',
+      ].join(';');
+
+      const flag = document.createElement('img');
+      flag.src = `https://flagcdn.com/w160/${iso2}.png`;
+      flag.alt = team.name;
+      flag.style.cssText = 'width:96px;height:64px;object-fit:cover;display:block;';
+      flag.referrerPolicy = 'no-referrer';
+      flagWrap.appendChild(flag);
+      wrap.appendChild(flagWrap);
+    }
+
     // Badge nombre + puntos
-    const badge = document.createElement('div');
     const activeColor = isLive ? '#4ade80' : isActive ? 'rgba(255,255,255,0.9)' : 'rgba(150,150,150,0.7)';
+    const badge = document.createElement('div');
     badge.style.cssText = [
-      'background:rgba(0,0,0,0.78)', 'backdrop-filter:blur(6px)',
+      'background:rgba(0,0,0,0.82)', 'backdrop-filter:blur(6px)',
       'padding:2px 7px', 'border-radius:4px',
       `font-size:${team.name.length > 8 ? '8px' : '9px'}`,
       `color:${activeColor}`, 'white-space:nowrap', 'font-weight:700',
@@ -234,21 +141,19 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
   }, []);
 
   // ── Color de polígono ────────────────────────────────────────────────────────
-  // Países con equipo → transparente (bandera ya está en la textura)
-  // Hover/selección → overlay de color para feedback
   const getCountryColor = (d: any) => {
     const code = d.properties.ISO_A3;
     const team = teams.find(t => t.countryCode === code);
     if (selectedCountryCode === code) return 'rgba(59,130,246,0.55)';
     if (hoveredCountry    === code) return 'rgba(255,255,255,0.14)';
-    if (team)                       return 'rgba(0,0,0,0)';       // transparente
-    return 'rgba(0,8,24,0.18)';                                    // tinte oscuro suave
+    if (team) return team.color ? hexToRgba(team.color, 0.62) : 'rgba(59,130,246,0.45)';
+    return 'rgba(0,8,24,0.18)';
   };
 
   const getStrokeColor = (d: any) => {
     const code = d.properties.ISO_A3;
     const team = teams.find(t => t.countryCode === code);
-    return team ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.05)';
+    return team ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.05)';
   };
 
   return (
@@ -258,7 +163,7 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
         width={dimensions.width}
         height={dimensions.height}
 
-        globeImageUrl={globeTexture}
+        globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         atmosphereColor="lightskyblue"
         atmosphereAltitude={0.14}

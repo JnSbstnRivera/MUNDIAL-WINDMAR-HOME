@@ -102,11 +102,21 @@ export default function App() {
       
       {/* Header */}
       <header className="absolute top-0 left-0 w-full p-6 z-40 flex justify-between items-center pointer-events-none">
-        <div className="pointer-events-auto">
-          <h1 className="text-2xl md:text-4xl font-black tracking-tighter bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent flex items-center gap-3">
-            <Trophy className="text-blue-500" /> MUNDIAL CALL CENTER
-          </h1>
-          <p className="text-xs md:text-sm text-gray-400 font-medium tracking-widest uppercase mt-1">Competencia de Equipos 2026</p>
+        <div className="pointer-events-auto flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl md:text-4xl font-black tracking-tighter bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent flex items-center gap-3">
+              <Trophy className="text-blue-500" /> MUNDIAL CALL CENTER
+            </h1>
+            <p className="text-xs md:text-sm text-gray-400 font-medium tracking-widest uppercase mt-1">Competencia de Equipos 2026</p>
+          </div>
+          <div className="hidden md:block w-px h-10 bg-white/15 self-center" />
+          <img
+            src="https://i.postimg.cc/44pJ0vXw/logo.png"
+            alt="Windmar Home"
+            className="hidden md:block h-10 object-contain"
+            style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.18))' }}
+            referrerPolicy="no-referrer"
+          />
         </div>
 
         <div className="flex gap-3 pointer-events-auto">

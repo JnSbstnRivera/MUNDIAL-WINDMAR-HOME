@@ -88,13 +88,7 @@ const SpaceBackground: React.FC = () => {
                 left: `${s.left}%`,
               }}
               animate={{
-                opacity:   [s.opacity * 0.2, 1, s.opacity * 0.2],
-                scale:     [1, 1.9, 1],
-                boxShadow: [
-                  'none',
-                  `0 0 8px 3px rgba(200,215,255,0.75)`,
-                  'none',
-                ],
+                opacity: [s.opacity * 0.15, 1, s.opacity * 0.15],
               }}
               transition={{
                 duration:   s.twinkleDuration,

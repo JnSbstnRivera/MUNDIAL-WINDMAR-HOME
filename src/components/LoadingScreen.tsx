@@ -164,7 +164,7 @@ const V1_BigBang: React.FC<{ onDone: () => void }> = ({ onDone }) => {
       <div className="flex flex-col items-center gap-6 z-10 px-6">
 
         {/* Copa + Logo Windmar */}
-        <BrandSection delay={0.2} trophySize={56} logoHeight="h-14" direction="row" />
+        <BrandSection delay={0.2} trophySize={56} logoHeight="h-20" direction="row" />
 
         {/* Título letra por letra */}
         <div className="flex flex-wrap justify-center leading-tight max-w-sm md:max-w-xl mt-1">
@@ -282,7 +282,7 @@ const V2_WarpSpeed: React.FC<{ onDone: () => void }> = ({ onDone }) => {
             {/* Copa + Logo */}
             <motion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}>
-              <BrandSection delay={0} trophySize={44} logoHeight="h-11" direction="row" animate={false} />
+              <BrandSection delay={0} trophySize={44} logoHeight="h-18" direction="row" animate={false} />
             </motion.div>
 
             {/* Texto MUNDIAL */}
@@ -432,7 +432,7 @@ const V3_Galaxy: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         </div>
 
         {/* Logo Windmar bajo el anillo */}
-        <motion.img src={WINDMAR_LOGO} alt="Windmar Home" className="h-10 object-contain"
+        <motion.img src={WINDMAR_LOGO} alt="Windmar Home" className="h-16 object-contain"
           style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.2))' }}
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.9 }} referrerPolicy="no-referrer" />
