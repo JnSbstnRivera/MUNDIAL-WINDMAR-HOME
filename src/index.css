@@ -6,27 +6,6 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-/* ─── Meteor shower ────────────────────────────────────────────────────────────
-   rotate(32deg) hace que translateX mueva el meteoro en esa dirección diagonal.
-   El 85% del tiempo el meteoro es invisible → efecto de "lluvia periódica".
-────────────────────────────────────────────────────────────────────────────── */
-@keyframes meteor {
-  0% {
-    transform: rotate(32deg) translateX(-60px);
-    opacity: 0;
-  }
-  3%  { opacity: 1; }
-  14% { opacity: 0; transform: rotate(32deg) translateX(900px); }
-  15%, 100% {
-    transform: rotate(32deg) translateX(900px);
-    opacity: 0;
-  }
-}
-
-.animate-meteor {
-  animation: meteor linear infinite;
-}
-
 /* ─── Bandera pulsante para partidos en vivo ──────────────────────────────── */
 @keyframes pulse-flag {
   from { box-shadow: 0 0 4px rgba(74, 222, 128, 0.5),  0 2px 8px rgba(0,0,0,0.7); }
@@ -41,7 +20,7 @@ body {
   @apply bg-black text-white antialiased overflow-hidden;
 }
 
-/* Custom scrollbar for leaderboard */
+/* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track  { @apply bg-transparent; }
 ::-webkit-scrollbar-thumb  { @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors; }
