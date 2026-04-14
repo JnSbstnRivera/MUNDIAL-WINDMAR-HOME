@@ -18,6 +18,109 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)},${alpha})`;
 }
 
+// ─── Canvas composite: pinta la bandera de cada equipo dentro de su país ──────
+async function buildGlobeTexture(
+  features: any[],
+  teams: Team[],
+  iso2Map: Record<string, string>
+): Promise<string> {
+  const W = 2048, H = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  // 1. Textura base Blue Marble
+  await new Promise<void>(resolve => {
+    const base = new Image();
+    base.crossOrigin = 'anonymous';
+    base.onload = () => { ctx.drawImage(base, 0, 0, W, H); resolve(); };
+    base.onerror = () => resolve();
+    base.src = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+  });
+
+  // 2. Proyección equirectangular: lon[-180,180]→x[0,W], lat[90,-90]→y[0,H]
+  const project = (lon: number, lat: number): [number, number] => [
+    ((lon + 180) / 360) * W,
+    ((90 - lat) / 180) * H,
+  ];
+
+  // 3. Pintar bandera dentro de cada país participante
+  for (const team of teams) {
+    const feature = features.find((f: any) => f.properties.ISO_A3 === team.countryCode);
+    const iso2 = iso2Map[team.countryCode];
+    if (!feature || !iso2 || iso2 === '-99') continue;
+
+    // Cargar bandera (silencioso si falla CORS)
+    const flagImg = await new Promise<HTMLImageElement | null>(resolve => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = `https://flagcdn.com/w320/${iso2}.png`;
+    });
+    if (!flagImg) continue;
+
+    // Recopilar anillos del polígono y calcular bounding box
+    let minX = W, minY = H, maxX = 0, maxY = 0;
+    const rings: [number, number][][] = [];
+
+    const processRing = (ring: number[][]) => {
+      const projected = ring.map(([lon, lat]) => project(lon, lat));
+      projected.forEach(([px, py]) => {
+        if (px < minX) minX = px; if (px > maxX) maxX = px;
+        if (py < minY) minY = py; if (py > maxY) maxY = py;
+      });
+      rings.push(projected as [number, number][]);
+    };
+
+    try {
+      const geom = feature.geometry;
+      if (geom.type === 'Polygon') {
+        geom.coordinates.forEach(processRing);
+      } else if (geom.type === 'MultiPolygon') {
+        // Usar solo el polígono más grande para evitar islas pequeñas dispersas
+        let biggest: number[][] | null = null;
+        let biggestArea = 0;
+        geom.coordinates.forEach((poly: number[][][]) => {
+          const ring = poly[0];
+          const area = Math.abs(ring.reduce((acc: number, [x, y]: number[], i: number) => {
+            const next = ring[(i + 1) % ring.length];
+            return acc + x * next[1] - next[0] * y;
+          }, 0) / 2);
+          if (area > biggestArea) { biggestArea = area; biggest = ring; }
+        });
+        if (biggest) processRing(biggest);
+      }
+    } catch { continue; }
+
+    const pw = maxX - minX;
+    const ph = maxY - minY;
+    if (pw <= 0 || ph <= 0 || pw > W * 0.7) continue;
+
+    // Clip al polígono y dibujar bandera
+    ctx.save();
+    ctx.beginPath();
+    rings.forEach(ring => {
+      ring.forEach(([px, py], i) => {
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+    });
+    ctx.clip();
+    ctx.globalAlpha = 0.72;
+    ctx.drawImage(flagImg, minX, minY, pw, ph);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  try {
+    return canvas.toDataURL('image/jpeg', 0.88);
+  } catch {
+    return '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+  }
+}
+
 // ─── Componente Globe ─────────────────────────────────────────────────────────
 const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedCountryCode }) => {
   const globeEl      = useRef<any>();
@@ -25,6 +128,9 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
   const [countries, setCountries]     = useState<any>({ features: [] });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [dimensions, setDimensions]   = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [globeTexture, setGlobeTexture] = useState(
+    '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+  );
 
   // ── Resize ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -53,7 +159,7 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
     }
   }, []);
 
-  // ── Mapa ISO3 → ISO2 a partir del GeoJSON ───────────────────────────────────
+  // ── Mapa ISO3 → ISO2 ────────────────────────────────────────────────────────
   const iso2Map = useMemo<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     countries.features.forEach((f: any) => {
@@ -64,7 +170,20 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
     return map;
   }, [countries]);
 
-  // ── Marcadores HTML: bandera grande + badge de nombre + puntos ───────────────
+  // ── Reconstruir textura cuando cambian equipos o países ─────────────────────
+  const teamCompositionKey = useMemo(
+    () => teams.map(t => `${t.countryCode}:${t.color ?? ''}`).sort().join('|'),
+    [teams]
+  );
+
+  useEffect(() => {
+    if (!countries.features.length || !teams.length) return;
+    buildGlobeTexture(countries.features, teams, iso2Map)
+      .then(setGlobeTexture)
+      .catch(console.error);
+  }, [teamCompositionKey, iso2Map]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Marcadores HTML: solo badge nombre + puntos (sin bandera flotante) ───────
   const teamMarkers = useMemo(() => {
     if (!countries.features.length) return [];
     return teams.map(team => {
@@ -74,23 +193,22 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
       if (!feature) return null;
       try {
         const [lng, lat] = d3.geoCentroid(feature as any);
-        const iso2 = iso2Map[team.countryCode];
         const isLive = matches.some(
           m => (m.teamAId === team.id || m.teamBId === team.id) && m.status === 'live'
         );
         const isActive = team.points > 0 || matches.some(
           m => m.teamAId === team.id || m.teamBId === team.id
         );
-        return { team, lat, lng, iso2, isLive, isActive };
+        return { team, lat, lng, isLive, isActive };
       } catch { return null; }
     }).filter(Boolean);
-  }, [teams, matches, countries, iso2Map]);
+  }, [teams, matches, countries]);
 
-  // ── Elemento HTML del marcador ───────────────────────────────────────────────
+  // ── Elemento HTML del marcador (solo badge, sin bandera) ─────────────────────
   const buildMarker = useCallback((d: any): HTMLElement => {
-    const { team, iso2, isLive, isActive } = d;
+    const { team, isLive, isActive } = d;
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);pointer-events:none;gap:3px;';
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);pointer-events:none;gap:2px;';
 
     // Badge EN VIVO
     if (isLive) {
@@ -105,30 +223,11 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
       wrap.appendChild(live);
     }
 
-    // Bandera grande que representa el país en el mapa
-    if (iso2 && iso2 !== '-99') {
-      const flagWrap = document.createElement('div');
-      flagWrap.style.cssText = [
-        'border-radius:4px', 'overflow:hidden',
-        `border:2px solid ${isLive ? 'rgba(74,222,128,0.7)' : isActive ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)'}`,
-        'box-shadow:0 2px 12px rgba(0,0,0,0.7)',
-        isActive ? 'opacity:1' : 'opacity:0.55',
-      ].join(';');
-
-      const flag = document.createElement('img');
-      flag.src = `https://flagcdn.com/w160/${iso2}.png`;
-      flag.alt = team.name;
-      flag.style.cssText = 'width:96px;height:64px;object-fit:cover;display:block;';
-      flag.referrerPolicy = 'no-referrer';
-      flagWrap.appendChild(flag);
-      wrap.appendChild(flagWrap);
-    }
-
     // Badge nombre + puntos
     const activeColor = isLive ? '#4ade80' : isActive ? 'rgba(255,255,255,0.9)' : 'rgba(150,150,150,0.7)';
     const badge = document.createElement('div');
     badge.style.cssText = [
-      'background:rgba(0,0,0,0.82)', 'backdrop-filter:blur(6px)',
+      'background:rgba(0,0,0,0.75)', 'backdrop-filter:blur(6px)',
       'padding:2px 7px', 'border-radius:4px',
       `font-size:${team.name.length > 8 ? '8px' : '9px'}`,
       `color:${activeColor}`, 'white-space:nowrap', 'font-weight:700',
@@ -144,16 +243,16 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
   const getCountryColor = (d: any) => {
     const code = d.properties.ISO_A3;
     const team = teams.find(t => t.countryCode === code);
-    if (selectedCountryCode === code) return 'rgba(59,130,246,0.55)';
-    if (hoveredCountry    === code) return 'rgba(255,255,255,0.14)';
-    if (team) return team.color ? hexToRgba(team.color, 0.62) : 'rgba(59,130,246,0.45)';
+    if (selectedCountryCode === code) return 'rgba(59,130,246,0.45)';
+    if (hoveredCountry    === code) return 'rgba(255,255,255,0.18)';
+    if (team)                       return 'rgba(0,0,0,0)';
     return 'rgba(0,8,24,0.18)';
   };
 
   const getStrokeColor = (d: any) => {
     const code = d.properties.ISO_A3;
     const team = teams.find(t => t.countryCode === code);
-    return team ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.05)';
+    return team ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.05)';
   };
 
   return (
@@ -163,7 +262,7 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
         width={dimensions.width}
         height={dimensions.height}
 
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+        globeImageUrl={globeTexture}
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         atmosphereColor="lightskyblue"
         atmosphereAltitude={0.14}
@@ -176,18 +275,34 @@ const Globe: React.FC<GlobeProps> = ({ teams, matches, onCountryClick, selectedC
         polygonStrokeColor={getStrokeColor}
         polygonLabel={({ properties: d }: any) => {
           const team = teams.find(t => t.countryCode === d.ISO_A3);
+          const leaderLine = team?.leader
+            ? `<div style="display:flex;align-items:center;gap:6px;margin-top:5px;">
+                <span style="color:#94a3b8;font-size:11px;">Líder</span>
+                <span style="color:#e2e8f0;font-size:12px;font-weight:600;">${team.leader}</span>
+               </div>`
+            : '';
           return `
-            <div style="background:rgba(8,8,20,0.92);color:white;padding:8px 12px;
-              border-radius:8px;border:1px solid rgba(255,255,255,0.12);
-              font-family:monospace;font-size:12px;min-width:140px;">
-              <b style="font-size:13px;">${d.ADMIN}</b>
-              <span style="color:rgba(150,150,180,0.7);font-size:10px;"> (${d.ISO_A3})</span>
-              ${team
-                ? `<br/><span style="color:#60a5fa;">▲ ${team.points} puntos</span>
-                   <br/><span style="color:#34d399;">⚽ ${team.goals} goles</span>
-                   <br/><span style="color:rgba(180,180,180,0.6);font-size:10px;">${team.callCenterGroup || ''}</span>`
-                : '<br/><span style="color:rgba(120,120,120,0.7);">No participa</span>'
-              }
+            <div style="
+              background:rgba(10,12,26,0.96);
+              color:white;
+              padding:10px 14px;
+              border-radius:10px;
+              border:1px solid rgba(255,255,255,0.10);
+              font-family:Inter,system-ui,-apple-system,sans-serif;
+              min-width:160px;
+              box-shadow:0 4px 20px rgba(0,0,0,0.6);
+            ">
+              <div style="font-size:14px;font-weight:700;color:#f1f5f9;line-height:1.3;">${d.ADMIN}</div>
+              ${team ? `
+                <div style="width:100%;height:1px;background:rgba(255,255,255,0.08);margin:6px 0;"></div>
+                <div style="display:flex;align-items:baseline;gap:6px;">
+                  <span style="color:#60a5fa;font-size:22px;font-weight:900;line-height:1;">${team.points}</span>
+                  <span style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">puntos</span>
+                </div>
+                ${leaderLine}
+              ` : `
+                <div style="color:#475569;font-size:11px;margin-top:4px;">No participa</div>
+              `}
             </div>`;
         }}
         onPolygonHover={(d: any) => setHoveredCountry(d ? d.properties.ISO_A3 : null)}

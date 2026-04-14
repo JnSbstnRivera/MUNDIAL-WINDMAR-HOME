@@ -8,7 +8,7 @@ import TeamDetails from './components/TeamDetails';
 import AdminPanel from './components/AdminPanel';
 import SpaceBackground from './components/SpaceBackground';
 import LoadingScreen from './components/LoadingScreen';
-import { Trophy, LogIn, LogOut, Shield, Globe as GlobeIcon, List, X } from 'lucide-react';
+import { Trophy, LogIn, LogOut, Settings, Globe as GlobeIcon, List, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const ADMIN_EMAILS = ['juan.s.windmarhome@gmail.com'];
@@ -135,7 +135,7 @@ export default function App() {
                   className={`p-2.5 rounded-full transition-all ${showAdmin ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
                   title="Panel Admin"
                 >
-                  <Shield size={20} />
+                  <Settings size={20} />
                 </button>
               )}
               <button
@@ -242,7 +242,7 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-lg font-black text-blue-400 font-mono leading-none">{team.points}</div>
+                        <div className="text-2xl font-black text-blue-400 font-mono leading-none">{team.points}</div>
                         <div className="text-[10px] text-gray-500 font-medium">PTS</div>
                       </div>
                       {userProfile?.role === 'admin' && (
@@ -254,7 +254,7 @@ export default function App() {
                           }}
                           className="p-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/40 transition-colors"
                         >
-                          <Shield size={14} />
+                          <Settings size={14} />
                         </button>
                       )}
                     </div>

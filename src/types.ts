@@ -7,6 +7,7 @@ export interface Team {
   color?: string;
   callCenterGroup?: string;
   lastMatchDate?: string;
+  leader?: string;
 }
 
 export interface Match {

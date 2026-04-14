@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { Team } from '../types';
-import { Plus, Trophy, Target, Trash2, Palette, Globe as GlobeIcon, Save, RefreshCcw, GripVertical, X } from 'lucide-react';
+import { Plus, Trophy, Target, Trash2, Palette, Globe as GlobeIcon, Save, RefreshCcw, GripVertical, X, Users } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface AdminPanelProps {
@@ -21,6 +21,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
   const [goals, setGoals] = useState(0);
   const [points, setPoints] = useState(0);
   const [teamColor, setTeamColor] = useState('#3b82f6');
+  const [leader, setLeader] = useState('');
 
   useEffect(() => {
     if (preSelectedTeamId) {
@@ -34,6 +35,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
   const [newTeamCode, setNewTeamCode] = useState('');
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
   const [newTeamGroup, setNewTeamGroup] = useState('');
+  const [newTeamLeader, setNewTeamLeader] = useState('');
 
   useEffect(() => {
     if (selectedTeamId) {
@@ -42,10 +44,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
         setTeamColor(team.color || '#3b82f6');
         setGoals(team.goals || 0);
         setPoints(team.points || 0);
+        setLeader(team.leader || '');
       }
     } else {
       setGoals(0);
       setPoints(0);
+      setLeader('');
     }
   }, [selectedTeamId, teams]);
 
@@ -60,6 +64,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
         goals: goals,
         points: points,
         color: teamColor,
+        leader: leader,
         lastMatchDate: new Date().toISOString()
       });
       // No alert as per instructions
@@ -97,6 +102,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
         countryCode: newTeamCode.toUpperCase(),
         color: newTeamColor,
         callCenterGroup: newTeamGroup,
+        leader: newTeamLeader,
         points: 0,
         goals: 0,
         lastMatchDate: new Date().toISOString()
@@ -104,6 +110,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
       setNewTeamName('');
       setNewTeamCode('');
       setNewTeamGroup('');
+      setNewTeamLeader('');
     } catch (error) {
       handleFirestoreError(error, 'create', 'teams');
     } finally {
@@ -220,6 +227,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-1">
+              <Users size={14} /> Nombre del Líder
+            </label>
+            <input
+              type="text"
+              value={leader}
+              onChange={(e) => setLeader(e.target.value)}
+              placeholder="Nombre del líder del equipo"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
           <button
             type="submit"
             disabled={loading || !selectedTeamId}
@@ -264,6 +284,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ teams, onClose, preSelectedTeam
               placeholder="Grupo Call Center"
               value={newTeamGroup}
               onChange={(e) => setNewTeamGroup(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-sm text-white outline-none"
+            />
+            <input
+              placeholder="Nombre del líder (opcional)"
+              value={newTeamLeader}
+              onChange={(e) => setNewTeamLeader(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-sm text-white outline-none"
             />
             <div className="flex items-center gap-4">
